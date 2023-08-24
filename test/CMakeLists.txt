@@ -37,6 +37,7 @@ add_unit_test(
     flow_test
     CATCH2
     FILES
+    flow/bit_matrix.cpp
     flow/flow.cpp
     LIBRARIES
     warnings
