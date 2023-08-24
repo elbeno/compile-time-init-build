@@ -248,37 +248,149 @@ TEST_CASE("add", "[bit matrix]") {
     CHECK(m + n == flow::bit_matrix<2>::identity());
 }
 
-// TODO:
-// split into 4 submatrices for recursion
+TEST_CASE("multiply8x8 (6x6 matrix)", "[bit matrix]") {
+    constexpr std::uint64_t m =
+        0b00000000'00000000'00010110'00110101'00100101'00111101'00100001'00100111;
+    constexpr std::uint64_t m2 =
+        0b00000000'00000000'00111101'00111111'00111111'00111111'00110111'00111111;
+    static_assert(flow::detail::multiply8x8(m, m) == m2);
+}
 
-// TEST_CASE("multiply", "[bit matrix]") {
-//     auto m = flow::bit_matrix<2>{};
-//     m.set(0, 0);
-//     m.set(1, 0);
-//     CHECK(m * m == m);
-// }
+TEST_CASE("multiply8x8 (2x2 matrix)", "[bit matrix]") {
+    constexpr std::uint64_t m1 = 0b00000000'00000011;
+    constexpr std::uint64_t m2 = 0b00000001'00000001;
 
-// TEST_CASE("power", "[bit matrix]") {
-//     auto m = flow::bit_matrix<3>{};
-//     m.set(0, 0);
-//     m.set(0, 2);
-//     m.set(1, 2);
-//     m.set(2, 0);
-//     m.set(2, 1);
+    constexpr std::uint64_t r1 = 0b00000011'00000011;
+    constexpr std::uint64_t r2 = 0b00000000'00000001;
+    static_assert(flow::detail::multiply8x8(m2, m1) == r1);
+    static_assert(flow::detail::multiply8x8(m1, m2) == r2);
+}
 
-//     auto n = flow::bit_matrix<3>{};
-//     n.set(0, 0);
-//     n.set(0, 1);
-//     n.set(0, 2);
-//     n.set(1, 0);
-//     n.set(1, 2);
-//     n.set(2, 0);
-//     n.set(2, 1);
-//     n.set(2, 2);
-//     CHECK(pow(m, 3) == n);
-// }
+TEST_CASE("to sub-blocks (fill blocks)", "[bit matrix]") {
+    auto m = flow::bit_matrix<16>{};
+    m.set(0, 0);
+    m.set(0, 15);
+    m.set(15, 0);
+    m.set(15, 15);
 
-// TEST_CASE("power (identity)", "[bit matrix]") {
-//     constexpr auto m = flow::bit_matrix<32>::identity();
-//     static_assert(pow(m, 32) == m);
-// }
+    auto s0 = flow::bit_matrix<8>{};
+    s0.set(0, 0);
+    auto s1 = flow::bit_matrix<8>{};
+    s1.set(0, 7);
+    auto s2 = flow::bit_matrix<8>{};
+    s2.set(7, 0);
+    auto s3 = flow::bit_matrix<8>{};
+    s3.set(7, 7);
+
+    auto subs = to_sub_blocks(m);
+    CHECK(subs[0] == s0);
+    CHECK(subs[1] == s1);
+    CHECK(subs[2] == s2);
+    CHECK(subs[3] == s3);
+}
+
+TEST_CASE("to sub-blocks (padded blocks)", "[bit matrix]") {
+    auto m = flow::bit_matrix<9>{};
+    m.set(0, 0);
+    m.set(0, 8);
+    m.set(8, 0);
+    m.set(8, 8);
+
+    auto s = flow::bit_matrix<8>{};
+    s.set(0, 0);
+
+    auto subs = to_sub_blocks(m);
+    CHECK(subs[0] == s);
+    CHECK(subs[1] == s);
+    CHECK(subs[2] == s);
+    CHECK(subs[3] == s);
+}
+
+TEST_CASE("from sub-blocks", "[bit matrix]") {
+    auto s0 = flow::bit_matrix<8>{};
+    s0.set(0, 0);
+    auto s1 = flow::bit_matrix<8>{};
+    s1.set(0, 7);
+    auto s2 = flow::bit_matrix<8>{};
+    s2.set(7, 0);
+    auto s3 = flow::bit_matrix<8>{};
+    s3.set(7, 7);
+
+    auto m = from_sub_blocks<16>(s0, s1, s2, s3);
+    CHECK(m.index(0, 0));
+    CHECK(m.index(0, 15));
+    CHECK(m.index(15, 0));
+    CHECK(m.index(15, 15));
+}
+
+TEST_CASE("from sub-blocks (padded blocks)", "[bit matrix]") {
+    auto s0 = flow::bit_matrix<8>{};
+    s0.set(0, 0);
+    auto s1 = flow::bit_matrix<8>{};
+    s1.set(0, 7);
+    auto s2 = flow::bit_matrix<8>{};
+    s2.set(7, 0);
+    auto s3 = flow::bit_matrix<8>{};
+    s3.set(7, 7);
+
+    auto m = from_sub_blocks<9>(s0, s1, s2, s3);
+    CHECK(m.index(0, 0));
+    CHECK(not m.index(0, 15));
+    CHECK(not m.index(15, 15));
+    CHECK(not m.index(15, 15));
+}
+
+TEST_CASE("multiply", "[bit matrix]") {
+    auto m = flow::bit_matrix<2>{};
+    m.set(0, 0);
+    m.set(1, 0);
+    CHECK(m * m == m);
+}
+
+TEST_CASE("power", "[bit matrix]") {
+    auto m = flow::bit_matrix<3>{};
+    m.set(0, 0);
+    m.set(0, 2);
+    m.set(1, 2);
+    m.set(2, 0);
+    m.set(2, 1);
+
+    auto n = flow::bit_matrix<3>{};
+    n.set(0, 0);
+    n.set(0, 1);
+    n.set(0, 2);
+    n.set(1, 0);
+    n.set(1, 2);
+    n.set(2, 0);
+    n.set(2, 1);
+    n.set(2, 2);
+    CHECK(pow(m, 3) == n);
+}
+
+TEST_CASE("multiply (block matrix)", "[bit matrix]") {
+    using namespace std::string_view_literals;
+    constexpr flow::bit_matrix<9> m{"110110110"
+                                    "010110010"
+                                    "010111111"
+                                    "110010110"
+                                    "010110110"
+                                    "001111111"
+                                    "010110110"
+                                    "010110110"
+                                    "000110111"sv};
+    constexpr flow::bit_matrix<9> m2{"110110110"
+                                     "110110110"
+                                     "111111111"
+                                     "110110110"
+                                     "110110110"
+                                     "111111111"
+                                     "110110110"
+                                     "110110110"
+                                     "110110111"sv};
+    CHECK(m * m == m2);
+}
+
+TEST_CASE("power (identity)", "[bit matrix]") {
+    constexpr auto m = flow::bit_matrix<64>::identity();
+    static_assert(pow(m, 64) == m);
+}

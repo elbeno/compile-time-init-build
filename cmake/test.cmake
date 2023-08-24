@@ -89,6 +89,7 @@ function(add_unit_test name)
     target_link_libraries(${name} PRIVATE ${UNIT_LIBRARIES})
     target_link_libraries_system(${name} PRIVATE ${UNIT_SYSTEM_LIBRARIES})
     target_link_libraries(${name} PRIVATE sanitizers)
+    # target_compile_options(${name} PRIVATE -fconstexpr-steps=8000000)
     add_dependencies(build_unit_tests ${name})
 
     if(UNIT_CATCH2)
