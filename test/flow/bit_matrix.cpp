@@ -20,96 +20,92 @@ TEST_CASE("size", "[bit matrix]") {
 }
 
 TEST_CASE("index compute (block 0,0 extrema)", "[bit matrix]") {
-    flow::bit_matrix<16> m{}; // 2x2 block
     {
-        auto const [ai, bi] = m.compute_index(0, 0);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(0, 0);
         CHECK(ai == 0);
         CHECK(bi == 0);
     }
     {
-        auto const [ai, bi] = m.compute_index(0, 7);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(0, 7);
         CHECK(ai == 0);
         CHECK(bi == 7);
     }
     {
-        auto const [ai, bi] = m.compute_index(7, 0);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(7, 0);
         CHECK(ai == 0);
         CHECK(bi == 56);
     }
     {
-        auto const [ai, bi] = m.compute_index(7, 7);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(7, 7);
         CHECK(ai == 0);
         CHECK(bi == 63);
     }
 }
 
 TEST_CASE("index compute (block 0,1 extrema)", "[bit matrix]") {
-    flow::bit_matrix<16> m{}; // 2x2 block
     {
-        auto const [ai, bi] = m.compute_index(0, 8);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(0, 8);
         CHECK(ai == 1);
         CHECK(bi == 0);
     }
     {
-        auto const [ai, bi] = m.compute_index(0, 15);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(0, 15);
         CHECK(ai == 1);
         CHECK(bi == 7);
     }
     {
-        auto const [ai, bi] = m.compute_index(7, 8);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(7, 8);
         CHECK(ai == 1);
         CHECK(bi == 56);
     }
     {
-        auto const [ai, bi] = m.compute_index(7, 15);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(7, 15);
         CHECK(ai == 1);
         CHECK(bi == 63);
     }
 }
 
 TEST_CASE("index compute (block 1,0 extrema)", "[bit matrix]") {
-    flow::bit_matrix<16> m{}; // 2x2 block
     {
-        auto const [ai, bi] = m.compute_index(8, 0);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(8, 0);
         CHECK(ai == 2);
         CHECK(bi == 0);
     }
     {
-        auto const [ai, bi] = m.compute_index(8, 7);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(8, 7);
         CHECK(ai == 2);
         CHECK(bi == 7);
     }
     {
-        auto const [ai, bi] = m.compute_index(15, 0);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(15, 0);
         CHECK(ai == 2);
         CHECK(bi == 56);
     }
     {
-        auto const [ai, bi] = m.compute_index(15, 7);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(15, 7);
         CHECK(ai == 2);
         CHECK(bi == 63);
     }
 }
 
 TEST_CASE("index compute (block 1,1 extrema)", "[bit matrix]") {
-    flow::bit_matrix<16> m{}; // 2x2 block
     {
-        auto const [ai, bi] = m.compute_index(8, 8);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(8, 8);
         CHECK(ai == 3);
         CHECK(bi == 0);
     }
     {
-        auto const [ai, bi] = m.compute_index(8, 15);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(8, 15);
         CHECK(ai == 3);
         CHECK(bi == 7);
     }
     {
-        auto const [ai, bi] = m.compute_index(15, 8);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(15, 8);
         CHECK(ai == 3);
         CHECK(bi == 56);
     }
     {
-        auto const [ai, bi] = m.compute_index(15, 15);
+        auto const [ai, bi] = flow::detail::compute_index<8, 2>(15, 15);
         CHECK(ai == 3);
         CHECK(bi == 63);
     }
@@ -181,23 +177,36 @@ TEST_CASE("create from string_view"
 }
 
 TEST_CASE("or", "[bit matrix]") {
-    auto m = flow::bit_matrix<2>::identity();
-    auto n = flow::bit_matrix<2>{} | m;
-    CHECK(n == m);
+    using namespace std::string_view_literals;
+    constexpr flow::bit_matrix<3> m{"100"
+                                    "010"
+                                    "001"sv};
+    constexpr flow::bit_matrix<3> n{"011"
+                                    "101"
+                                    "110"sv};
+    constexpr flow::bit_matrix<3> r{"111"
+                                    "111"
+                                    "111"sv};
+    static_assert((m | n) == r);
 }
 
 TEST_CASE("and", "[bit matrix]") {
-    auto m = flow::bit_matrix<2>::identity();
-    auto n = flow::bit_matrix<2>{} & m;
-    CHECK(n == flow::bit_matrix<2>{});
+    using namespace std::string_view_literals;
+    constexpr flow::bit_matrix<3> m{"101"
+                                    "010"
+                                    "101"sv};
+    constexpr flow::bit_matrix<3> n{"010"
+                                    "101"
+                                    "010"sv};
+    static_assert((m & n) == flow::bit_matrix<3>{});
 }
 
 TEST_CASE("complement", "[bit matrix]") {
-    auto m = ~flow::bit_matrix<2>::identity();
-    CHECK(not m.index(0, 0));
-    CHECK(m.index(0, 1));
-    CHECK(m.index(1, 0));
-    CHECK(not m.index(1, 1));
+    using namespace std::string_view_literals;
+    constexpr auto m = ~flow::bit_matrix<2>::identity();
+    constexpr flow::bit_matrix<2> r{"01"
+                                    "10"sv};
+    static_assert(m == r);
 }
 
 TEST_CASE("xor", "[bit matrix]") {

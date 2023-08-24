@@ -17,7 +17,25 @@
 
 namespace flow {
 namespace detail {
-constexpr auto transpose8x8(std::uint64_t x) {
+struct index_t {
+    std::size_t array_index;
+    std::size_t bit_index;
+};
+
+template <std::size_t block_size, std::size_t extent>
+[[nodiscard]] constexpr auto compute_index(std::size_t row, std::size_t col) {
+    auto const block_row_index = row / block_size;
+    auto const block_col_index = col / block_size;
+    auto const ai = block_row_index * extent + block_col_index;
+
+    auto const block_row_subindex = row % block_size;
+    auto const block_col_subindex = col % block_size;
+    auto const bi = block_row_subindex * block_size + block_col_subindex;
+
+    return index_t{ai, bi};
+}
+
+[[nodiscard]] constexpr auto transpose8x8(std::uint64_t x) {
     std::uint64_t t = (x ^ (x >> 7u)) & 0x00aa'00aa'00aa'00aaull;
     x ^= t ^ (t << 7u);
     t = (x ^ (x >> 14u)) & 0x0000'cccc'0000'ccccull;
@@ -55,12 +73,7 @@ template <std::size_t N> class bit_matrix {
 
     std::array<elem_type, num_blocks * num_blocks> storage{};
 
-    struct index_t {
-        std::size_t array_index;
-        std::size_t bit_index;
-    };
-
-    constexpr auto set(index_t i, bool value) -> bit_matrix & {
+    constexpr auto set(detail::index_t i, bool value) -> bit_matrix & {
         auto const [ai, bi] = i;
         if (value) {
             storage[ai] |= (bit << bi);
@@ -70,12 +83,12 @@ template <std::size_t N> class bit_matrix {
         return *this;
     }
 
-    constexpr auto get(index_t i) const -> bool {
+    constexpr auto get(detail::index_t i) const -> bool {
         auto const [ai, bi] = i;
         return (storage[ai] & (bit << bi)) != 0;
     }
 
-    struct proxy : index_t {
+    struct proxy : detail::index_t {
         bit_matrix *m;
         constexpr auto operator=(bool value) -> proxy & {
             m->set(*this, value);
@@ -85,55 +98,6 @@ template <std::size_t N> class bit_matrix {
         constexpr explicit(true) operator bool() const { return m->get(*this); }
     };
 
-    friend constexpr auto bodies_equal(bit_matrix const &lhs,
-                                       bit_matrix const &rhs) -> bool {
-        for (auto i = std::size_t{}; i < num_blocks - 1; ++i) {
-            for (auto j = std::size_t{}; j < num_blocks - 1; ++j) {
-                if (lhs.storage[i * num_blocks + j] !=
-                    rhs.storage[i * num_blocks + j]) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    friend constexpr auto right_columns_equal(bit_matrix const &lhs,
-                                              bit_matrix const &rhs) -> bool {
-        constexpr auto right_col = num_blocks - 1;
-        for (auto i = std::size_t{}; i < num_blocks - 1; ++i) {
-            if ((lhs.storage[i * num_blocks + right_col] & right_column_mask) !=
-                (rhs.storage[i * num_blocks + right_col] & right_column_mask)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    friend constexpr auto bottom_rows_equal(bit_matrix const &lhs,
-                                            bit_matrix const &rhs) -> bool {
-        constexpr auto bottom_row_start = num_blocks * (num_blocks - 1);
-        for (auto i = std::size_t{}; i < num_blocks - 1; ++i) {
-            if ((lhs.storage[bottom_row_start + i] & bottom_row_mask) !=
-                (rhs.storage[bottom_row_start + i] & bottom_row_mask)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    friend constexpr auto lasts_equal(bit_matrix const &lhs,
-                                      bit_matrix const &rhs) -> bool {
-        constexpr auto last_mask = right_column_mask & bottom_row_mask;
-        return (lhs.storage.back() & last_mask) ==
-               (rhs.storage.back() & last_mask);
-    }
-
-    // friend constexpr auto operator==(bit_matrix const &lhs,
-    //                                  bit_matrix const &rhs) -> bool {
-    //     return bodies_equal(lhs, rhs) and right_columns_equal(lhs, rhs) and
-    //            bottom_rows_equal(lhs, rhs) and lasts_equal(lhs, rhs);
-    // }
     friend constexpr auto operator==(bit_matrix const &lhs,
                                      bit_matrix const &rhs) -> bool = default;
 
@@ -159,6 +123,7 @@ template <std::size_t N> class bit_matrix {
         bit_matrix r{};
         std::transform(std::begin(m.storage), std::end(m.storage),
                        std::begin(r.storage), std::bit_not{});
+        r.mask_edges();
         return r;
     }
 
@@ -230,6 +195,17 @@ template <std::size_t N> class bit_matrix {
     //       return os;
     //   }
 
+    constexpr auto mask_edges() -> void {
+        constexpr auto right_col = num_blocks - 1;
+        for (auto i = std::size_t{}; i < num_blocks; ++i) {
+            storage[i * num_blocks + right_col] &= right_column_mask;
+        }
+        constexpr auto bottom_row_start = num_blocks * (num_blocks - 1);
+        for (auto i = std::size_t{}; i < num_blocks; ++i) {
+            storage[bottom_row_start + i] &= bottom_row_mask;
+        }
+    }
+
   public:
     constexpr bit_matrix() = default;
     constexpr bit_matrix(std::string_view v) {
@@ -239,8 +215,7 @@ template <std::size_t N> class bit_matrix {
             if (c == '1') {
                 set(i, j);
             }
-            ++i;
-            if (i == N) {
+            if (++i == N) {
                 i = 0;
                 ++j;
             }
@@ -256,46 +231,25 @@ template <std::size_t N> class bit_matrix {
         return m;
     }
 
-    [[nodiscard]] constexpr static auto compute_index(std::size_t row,
-                                                      std::size_t col) {
-        auto const block_row_index = row / block_size;
-        auto const block_col_index = col / block_size;
-        auto const ai = block_row_index * num_blocks + block_col_index;
-
-        auto const block_row_subindex = row % block_size;
-        auto const block_col_subindex = col % block_size;
-        auto const bi = block_row_subindex * block_size + block_col_subindex;
-
-        return index_t{ai, bi};
-    }
-
     [[nodiscard]] constexpr auto index(std::size_t row, std::size_t col) const
         -> bool {
-        return get(compute_index(row, col));
+        return get(detail::compute_index<block_size, num_blocks>(row, col));
     }
 
     [[nodiscard]] constexpr auto index(std::size_t row, std::size_t col)
         -> proxy {
-        return {compute_index(row, col), this};
+        return {detail::compute_index<block_size, num_blocks>(row, col), this};
     }
 
     constexpr auto set(std::size_t row, std::size_t col, bool value = true)
         -> bit_matrix & {
-        return set(compute_index(row, col), value);
+        return set(detail::compute_index<block_size, num_blocks>(row, col),
+                   value);
     }
 
     constexpr auto set() -> bit_matrix & {
         storage.fill(allbits);
-
-        constexpr auto right_col = num_blocks - 1;
-        for (auto i = std::size_t{}; i < num_blocks; ++i) {
-            storage[i * num_blocks + right_col] &= right_column_mask;
-        }
-        constexpr auto bottom_row_start = num_blocks * (num_blocks - 1);
-        for (auto i = std::size_t{}; i < num_blocks; ++i) {
-            storage[bottom_row_start + i] &= bottom_row_mask;
-        }
-
+        mask_edges();
         return *this;
     }
 
