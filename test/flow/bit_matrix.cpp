@@ -215,6 +215,14 @@ TEST_CASE("xor", "[bit matrix]") {
     CHECK(n == flow::bit_matrix<2>{});
 }
 
+TEST_CASE("transpose 8x8", "[bit matrix]") {
+    constexpr std::uint64_t m =
+        0b11100100'10000100'10111100'10100100'10101100'01101000'00000000'00000000;
+    constexpr std::uint64_t r =
+        0b11111000'10000100'10111100'00100000'00101100'11111000'00000000'00000000;
+    static_assert(flow::detail::transpose8x8(m) == r);
+}
+
 TEST_CASE("transpose identity", "[bit matrix]") {
     auto m = flow::bit_matrix<2>::identity();
     CHECK(transpose(m) == flow::bit_matrix<2>::identity());
