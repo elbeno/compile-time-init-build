@@ -1,17 +1,13 @@
 #pragma once
 
-#include <fmt/format.h>
-
 #include <algorithm>
 #include <array>
-#include <climits>
-#include <concepts>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <iterator>
 #include <limits>
-#include <numeric>
 #include <ostream>
 #include <string_view>
 
@@ -57,13 +53,10 @@ template <std::size_t block_size, std::size_t extent>
 }
 
 [[nodiscard]] constexpr auto multiply8x8(std::uint64_t x, std::uint64_t y) {
-    constexpr std::uint64_t row = 0xffull;
-    constexpr std::uint64_t col = 0x0101'0101'0101'0101ull;
-
     std::uint64_t r{};
     while (y != 0) {
-        std::uint64_t yrow = y & row;
-        std::uint64_t xcol = x & col;
+        std::uint64_t yrow = y & 0xffull;
+        std::uint64_t xcol = x & 0x0101'0101'0101'0101ull;
         r |= yrow * xcol;
         y >>= 8u;
         x >>= 1u;
@@ -72,20 +65,15 @@ template <std::size_t block_size, std::size_t extent>
 }
 
 template <std::size_t N>
-[[nodiscard]] constexpr auto multiplyNxN(std::uint64_t const *x,
-                                         std::uint64_t const *y,
-                                         std::uint64_t *dst) {
+constexpr auto multiplyNxN(std::uint64_t const *x, std::uint64_t const *y,
+                           std::uint64_t *dst) -> void {
     if constexpr (N == 1) {
         dst[0] = multiply8x8(x[0], y[0]);
     } else if constexpr (N == 2) {
-        dst[0] =
-            detail::multiply8x8(x[0], y[0]) | detail::multiply8x8(y[1], y[2]);
-        dst[1] =
-            detail::multiply8x8(x[0], y[1]) | detail::multiply8x8(x[1], y[3]);
-        dst[2] =
-            detail::multiply8x8(x[2], y[0]) | detail::multiply8x8(x[3], y[2]);
-        dst[3] =
-            detail::multiply8x8(x[2], y[1]) | detail::multiply8x8(x[3], y[3]);
+        dst[0] = multiply8x8(x[0], y[0]) | multiply8x8(y[1], y[2]);
+        dst[1] = multiply8x8(x[0], y[1]) | multiply8x8(x[1], y[3]);
+        dst[2] = multiply8x8(x[2], y[0]) | multiply8x8(x[3], y[2]);
+        dst[3] = multiply8x8(x[2], y[1]) | multiply8x8(x[3], y[3]);
     } else {
         constexpr auto M = N * N / 4;
 
@@ -99,32 +87,31 @@ template <std::size_t N>
         auto const c2 = b2 + M;
         auto const d2 = c2 + M;
 
-        auto const dst1 = dst;
-        auto const dst2 = dst1 + M;
-        auto const dst3 = dst2 + M;
-        auto const dst4 = dst3 + M;
-
         std::array<std::uint64_t, M> intermediate{};
 
         multiplyNxN<N / 2>(a1, a2, std::data(intermediate));
-        multiplyNxN<N / 2>(b1, c2, dst1);
-        std::transform(std::begin(intermediate), std::end(intermediate), dst1,
-                       dst1, std::bit_or{});
+        multiplyNxN<N / 2>(b1, c2, dst);
+        for (auto i = std::size_t{}; i < M; ++i) {
+            *dst++ |= intermediate[i];
+        }
 
         multiplyNxN<N / 2>(a1, b2, std::data(intermediate));
-        multiplyNxN<N / 2>(b1, d2, dst2);
-        std::transform(std::begin(intermediate), std::end(intermediate), dst2,
-                       dst2, std::bit_or{});
+        multiplyNxN<N / 2>(b1, d2, dst);
+        for (auto i = std::size_t{}; i < M; ++i) {
+            *dst++ |= intermediate[i];
+        }
 
         multiplyNxN<N / 2>(c1, a2, std::data(intermediate));
-        multiplyNxN<N / 2>(d1, c2, dst3);
-        std::transform(std::begin(intermediate), std::end(intermediate), dst3,
-                       dst3, std::bit_or{});
+        multiplyNxN<N / 2>(d1, c2, dst);
+        for (auto i = std::size_t{}; i < M; ++i) {
+            *dst++ |= intermediate[i];
+        }
 
         multiplyNxN<N / 2>(c1, b2, std::data(intermediate));
-        multiplyNxN<N / 2>(d1, d2, dst4);
-        std::transform(std::begin(intermediate), std::end(intermediate), dst4,
-                       dst4, std::bit_or{});
+        multiplyNxN<N / 2>(d1, d2, dst);
+        for (auto i = std::size_t{}; i < M; ++i) {
+            *dst++ |= intermediate[i];
+        }
     }
 }
 } // namespace detail
@@ -138,7 +125,6 @@ template <std::size_t N> class bit_matrix {
 
     constexpr static auto bit = elem_type{1u};
     constexpr static auto allbits = std::numeric_limits<elem_type>::max();
-    constexpr static elem_type identity_elem = 0x80'40'20'10'08'04'02'01;
 
     constexpr static auto leftover_rows = N % block_size;
     constexpr static elem_type bottom_row_mask =
@@ -166,7 +152,7 @@ template <std::size_t N> class bit_matrix {
         return *this;
     }
 
-    constexpr auto get(detail::index_t i) const -> bool {
+    [[nodiscard]] constexpr auto get(detail::index_t i) const -> bool {
         auto const [ai, bi] = i;
         return (storage[ai] & (bit << bi)) != 0;
     }
@@ -214,8 +200,8 @@ template <std::size_t N> class bit_matrix {
         bit_matrix result{};
         for (auto i = std::size_t{}; i < num_blocks; ++i) {
             for (auto j = std::size_t{}; j < num_blocks; ++j) {
-                result.storage[j * num_blocks + i] =
-                    detail::transpose8x8(m.storage[i * num_blocks + j]);
+                result.storage[detail::to_morton(i, j)] =
+                    detail::transpose8x8(m.storage[detail::to_morton(j, i)]);
             }
         }
         return result;
@@ -239,10 +225,20 @@ template <std::size_t N> class bit_matrix {
             return m;
         }
         if (n % 2 == 0) {
-            auto const r = pow(m, n / 2);
+            auto r = pow(m, n / 2);
             return r * r;
         }
         return m * pow(m, n - 1);
+    }
+
+    constexpr auto mask_edges() -> void {
+        constexpr auto last = num_blocks - 1;
+        for (auto i = std::size_t{}; i < num_blocks; ++i) {
+            auto const col_idx = detail::to_morton(last, i);
+            storage[col_idx] &= right_column_mask;
+            auto const row_idx = detail::to_morton(i, last);
+            storage[row_idx] &= bottom_row_mask;
+        }
     }
 
     friend auto operator<<(std::ostream &os, bit_matrix const &m)
@@ -258,7 +254,7 @@ template <std::size_t N> class bit_matrix {
 
   public:
     constexpr bit_matrix() = default;
-    constexpr bit_matrix(std::string_view v) {
+    constexpr explicit(true) bit_matrix(std::string_view v) {
         auto i = std::size_t{};
         auto j = std::size_t{};
         for (auto c : v) {
@@ -273,6 +269,7 @@ template <std::size_t N> class bit_matrix {
     }
 
     [[nodiscard]] constexpr static auto identity() -> bit_matrix {
+        constexpr elem_type identity_elem = 0x80'40'20'10'08'04'02'01;
         bit_matrix m{};
         for (auto i = std::size_t{}; i < num_blocks; ++i) {
             m.storage[detail::to_morton(i, i)] = identity_elem;
@@ -337,19 +334,6 @@ template <std::size_t N> class bit_matrix {
         detail::multiplyNxN<num_blocks>(
             std::data(storage), std::data(m.storage), std::data(storage));
         return *this;
-    }
-
-    constexpr auto mask_edges() -> void {
-        constexpr auto right_col = num_blocks - 1;
-        for (auto i = std::size_t{}; i < num_blocks; ++i) {
-            auto const idx = detail::to_morton(right_col, i);
-            storage[idx] &= right_column_mask;
-        }
-        constexpr auto bottom_row = num_blocks - 1;
-        for (auto i = std::size_t{}; i < num_blocks; ++i) {
-            auto const idx = detail::to_morton(i, bottom_row);
-            storage[idx] &= bottom_row_mask;
-        }
     }
 };
 } // namespace flow
