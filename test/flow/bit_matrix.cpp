@@ -19,6 +19,13 @@ TEST_CASE("size", "[bit matrix]") {
     static_assert(sizeof(flow::bit_matrix<17>) == 128);
 }
 
+TEST_CASE("morton order compute", "[bit matrix]") {
+    CHECK(flow::detail::to_morton(0, 0) == 0);
+    CHECK(flow::detail::to_morton(1, 0) == 1);
+    CHECK(flow::detail::to_morton(0, 1) == 2);
+    CHECK(flow::detail::to_morton(1, 1) == 3);
+}
+
 TEST_CASE("index compute (block 0,0 extrema)", "[bit matrix]") {
     {
         auto const [ai, bi] = flow::detail::compute_index<8, 2>(0, 0);
@@ -264,80 +271,6 @@ TEST_CASE("multiply8x8 (2x2 matrix)", "[bit matrix]") {
     constexpr std::uint64_t r2 = 0b00000000'00000001;
     static_assert(flow::detail::multiply8x8(m2, m1) == r1);
     static_assert(flow::detail::multiply8x8(m1, m2) == r2);
-}
-
-TEST_CASE("to sub-blocks (fill blocks)", "[bit matrix]") {
-    auto m = flow::bit_matrix<16>{};
-    m.set(0, 0);
-    m.set(0, 15);
-    m.set(15, 0);
-    m.set(15, 15);
-
-    auto s0 = flow::bit_matrix<8>{};
-    s0.set(0, 0);
-    auto s1 = flow::bit_matrix<8>{};
-    s1.set(0, 7);
-    auto s2 = flow::bit_matrix<8>{};
-    s2.set(7, 0);
-    auto s3 = flow::bit_matrix<8>{};
-    s3.set(7, 7);
-
-    auto subs = to_sub_blocks(m);
-    CHECK(subs[0] == s0);
-    CHECK(subs[1] == s1);
-    CHECK(subs[2] == s2);
-    CHECK(subs[3] == s3);
-}
-
-TEST_CASE("to sub-blocks (padded blocks)", "[bit matrix]") {
-    auto m = flow::bit_matrix<9>{};
-    m.set(0, 0);
-    m.set(0, 8);
-    m.set(8, 0);
-    m.set(8, 8);
-
-    auto s = flow::bit_matrix<8>{};
-    s.set(0, 0);
-
-    auto subs = to_sub_blocks(m);
-    CHECK(subs[0] == s);
-    CHECK(subs[1] == s);
-    CHECK(subs[2] == s);
-    CHECK(subs[3] == s);
-}
-
-TEST_CASE("from sub-blocks", "[bit matrix]") {
-    auto s0 = flow::bit_matrix<8>{};
-    s0.set(0, 0);
-    auto s1 = flow::bit_matrix<8>{};
-    s1.set(0, 7);
-    auto s2 = flow::bit_matrix<8>{};
-    s2.set(7, 0);
-    auto s3 = flow::bit_matrix<8>{};
-    s3.set(7, 7);
-
-    auto m = from_sub_blocks<16>(s0, s1, s2, s3);
-    CHECK(m.index(0, 0));
-    CHECK(m.index(0, 15));
-    CHECK(m.index(15, 0));
-    CHECK(m.index(15, 15));
-}
-
-TEST_CASE("from sub-blocks (padded blocks)", "[bit matrix]") {
-    auto s0 = flow::bit_matrix<8>{};
-    s0.set(0, 0);
-    auto s1 = flow::bit_matrix<8>{};
-    s1.set(0, 7);
-    auto s2 = flow::bit_matrix<8>{};
-    s2.set(7, 0);
-    auto s3 = flow::bit_matrix<8>{};
-    s3.set(7, 7);
-
-    auto m = from_sub_blocks<9>(s0, s1, s2, s3);
-    CHECK(m.index(0, 0));
-    CHECK(not m.index(0, 15));
-    CHECK(not m.index(15, 15));
-    CHECK(not m.index(15, 15));
 }
 
 TEST_CASE("multiply", "[bit matrix]") {

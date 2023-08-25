@@ -23,11 +23,22 @@ struct index_t {
     std::size_t bit_index;
 };
 
+[[nodiscard]] constexpr auto to_morton(std::size_t x, std::size_t y) {
+    return (((x * 0x0101'0101'0101'0101ull & 0x8040'2010'0804'0201ull) *
+                 0x0102'0408'1020'4081ull >>
+             49u) &
+            0x5555ull) |
+           (((y * 0x0101'0101'0101'0101ull & 0x8040'2010'0804'0201ull) *
+                 0x0102'0408'1020'4081ull >>
+             48u) &
+            0xAAAAull);
+}
+
 template <std::size_t block_size, std::size_t extent>
 [[nodiscard]] constexpr auto compute_index(std::size_t row, std::size_t col) {
     auto const block_row_index = row / block_size;
     auto const block_col_index = col / block_size;
-    auto const ai = block_row_index * extent + block_col_index;
+    auto const ai = to_morton(block_col_index, block_row_index);
 
     auto const block_row_subindex = row % block_size;
     auto const block_col_subindex = col % block_size;
@@ -59,6 +70,65 @@ template <std::size_t block_size, std::size_t extent>
         x >>= 1u;
     }
     return r;
+}
+
+template <std::size_t N>
+[[nodiscard]] constexpr auto multiplyNxN(std::span<std::uint64_t const, N> x,
+                                         std::span<std::uint64_t const, N> y,
+                                         std::span<std::uint64_t, N> dst) {
+    if constexpr (N == 1) {
+        dst[0] = multiply8x8(x[0], y[0]);
+    } else if constexpr (N == 2) {
+        dst[0] =
+            detail::multiply8x8(x[0], y[0]) | detail::multiply8x8(y[1], y[2]);
+        dst[1] =
+            detail::multiply8x8(x[0], y[1]) | detail::multiply8x8(x[1], y[3]);
+        dst[2] =
+            detail::multiply8x8(x[2], y[0]) | detail::multiply8x8(x[3], y[2]);
+        dst[3] =
+            detail::multiply8x8(x[2], y[1]) | detail::multiply8x8(x[3], y[3]);
+    } else {
+        constexpr auto M = N / 4;
+        using subsrc = std::span<std::uint64_t const, M>;
+
+        auto const a1 = subsrc{std::begin(x), M};
+        auto const b1 = subsrc{std::next(std::begin(x), M), M};
+        auto const c1 = subsrc{std::next(std::begin(x), M * 2), M};
+        auto const d1 = subsrc{std::next(std::begin(x), M * 3), M};
+
+        auto const a2 = subsrc{std::begin(y), M};
+        auto const b2 = subsrc{std::next(std::begin(y), M), M};
+        auto const c2 = subsrc{std::next(std::begin(y), M * 2), M};
+        auto const d2 = subsrc{std::next(std::begin(y), M * 3), M};
+
+        using subdst = std::span<std::uint64_t, M>;
+        auto const dst1 = subdst{std::begin(dst), M};
+        auto const dst2 = subdst{std::next(std::begin(dst), M), M};
+        auto const dst3 = subdst{std::next(std::begin(dst), M * 2), M};
+        auto const dst4 = subdst{std::next(std::begin(dst), M * 3), M};
+
+        std::array<std::uint64_t, M> intermediate{};
+
+        multiplyNxN(a1, a2, std::span{intermediate});
+        multiplyNxN(b1, c2, std::span{dst1});
+        std::transform(std::begin(intermediate), std::end(intermediate),
+                       std::begin(dst1), std::begin(dst1), std::bit_or{});
+
+        multiplyNxN(a1, b2, std::span{intermediate});
+        multiplyNxN(b1, d2, std::span{dst2});
+        std::transform(std::begin(intermediate), std::end(intermediate),
+                       std::begin(dst2), std::begin(dst2), std::bit_or{});
+
+        multiplyNxN(c1, a2, std::span{intermediate});
+        multiplyNxN(d1, c2, std::span{dst3});
+        std::transform(std::begin(intermediate), std::end(intermediate),
+                       std::begin(dst3), std::begin(dst3), std::bit_or{});
+
+        multiplyNxN(c1, b2, std::span{intermediate});
+        multiplyNxN(d1, d2, std::span{dst4});
+        std::transform(std::begin(intermediate), std::end(intermediate),
+                       std::begin(dst4), std::begin(dst4), std::bit_or{});
+    }
 }
 } // namespace detail
 
@@ -189,67 +259,6 @@ template <std::size_t N> class bit_matrix {
         return os;
     }
 
-    friend constexpr auto
-    copy_from_larger_block(bit_matrix &dst, std::span<std::uint64_t const> src,
-                           std::size_t row_offset, std::size_t col_offset) {
-        std::size_t c{};
-        for (auto i = std::size_t{}; i < num_blocks; ++i) {
-            for (auto j = std::size_t{}; j < num_blocks; ++j) {
-                dst.storage[c++] =
-                    src[(row_offset + i) * num_blocks * 2 + col_offset + j];
-            }
-        }
-    }
-
-    friend constexpr auto
-    copy_from_smaller_block(bit_matrix &dst, std::span<std::uint64_t const> src,
-                            std::size_t n, std::size_t row_offset,
-                            std::size_t col_offset) {
-        std::size_t c{};
-        for (auto i = std::size_t{}; i < n; ++i) {
-            for (auto j = std::size_t{}; j < n; ++j) {
-                dst.storage[(row_offset + i) * num_blocks + col_offset + j] =
-                    src[c++];
-            }
-        }
-    }
-
-    constexpr static auto halfsize = block_size * num_blocks / 2;
-
-    [[nodiscard]] friend constexpr auto to_sub_blocks(bit_matrix const &m) {
-        std::array<bit_matrix<halfsize>, 4> blocks{};
-        auto const src = std::span{std::data(m.storage), std::size(m.storage)};
-        copy_from_larger_block(blocks[0], src, 0, 0);
-        copy_from_larger_block(blocks[1], src, 0, num_blocks / 2);
-        copy_from_larger_block(blocks[2], src, num_blocks / 2, 0);
-        copy_from_larger_block(blocks[3], src, num_blocks / 2, num_blocks / 2);
-        return blocks;
-    }
-
-    template <std::size_t M>
-    [[nodiscard]] friend constexpr auto
-    from_sub_blocks(bit_matrix const &m0, bit_matrix const &m1,
-                    bit_matrix const &m2, bit_matrix const &m3) {
-        bit_matrix<M> r{};
-        constexpr auto n = std::bit_ceil((M + block_size - 1) / block_size) / 2;
-
-        copy_from_smaller_block(
-            r, std::span{std::data(m0.storage), std::size(m0.storage)},
-            num_blocks, 0, 0);
-        copy_from_smaller_block(
-            r, std::span{std::data(m1.storage), std::size(m1.storage)},
-            num_blocks, 0, n);
-        copy_from_smaller_block(
-            r, std::span{std::data(m2.storage), std::size(m2.storage)},
-            num_blocks, n, 0);
-        copy_from_smaller_block(
-            r, std::span{std::data(m3.storage), std::size(m3.storage)},
-            num_blocks, n, n);
-
-        r.mask_edges();
-        return r;
-    }
-
   public:
     constexpr bit_matrix() = default;
     constexpr bit_matrix(std::string_view v) {
@@ -269,7 +278,7 @@ template <std::size_t N> class bit_matrix {
     [[nodiscard]] constexpr static auto identity() -> bit_matrix {
         bit_matrix m{};
         for (auto i = std::size_t{}; i < num_blocks; ++i) {
-            m.storage[i * num_blocks + i] = identity_elem;
+            m.storage[detail::to_morton(i, i)] = identity_elem;
         }
         m.storage.back() &= right_column_mask & bottom_row_mask;
         return m;
@@ -327,47 +336,22 @@ template <std::size_t N> class bit_matrix {
         return this->operator^=(rhs);
     }
 
-    constexpr auto operator*=(bit_matrix const &m) -> bit_matrix &
-        requires(num_blocks == 1)
-    {
-        storage[0] = detail::multiply8x8(storage[0], m.storage[0]);
-        return *this;
-    }
-
-    constexpr auto operator*=(bit_matrix const &m) -> bit_matrix &
-        requires(num_blocks == 2)
-    {
-        storage[0] = detail::multiply8x8(storage[0], m.storage[0]) |
-                     detail::multiply8x8(storage[1], m.storage[2]);
-        storage[1] = detail::multiply8x8(storage[0], m.storage[1]) |
-                     detail::multiply8x8(storage[1], m.storage[3]);
-        storage[2] = detail::multiply8x8(storage[2], m.storage[0]) |
-                     detail::multiply8x8(storage[3], m.storage[2]);
-        storage[3] = detail::multiply8x8(storage[2], m.storage[1]) |
-                     detail::multiply8x8(storage[3], m.storage[3]);
-        mask_edges();
-        return *this;
-    }
-
-    constexpr auto operator*=(bit_matrix const &m) -> bit_matrix &
-        requires(num_blocks > 2)
-    {
-        auto const a = to_sub_blocks(*this);
-        auto const b = to_sub_blocks(m);
-        *this = from_sub_blocks<N>(
-            a[0] * b[0] | a[1] * b[2], a[0] * b[1] | a[1] * b[3],
-            a[2] * b[0] | a[3] * b[2], a[2] * b[1] | a[3] * b[3]);
+    constexpr auto operator*=(bit_matrix const &m) -> bit_matrix & {
+        detail::multiplyNxN(std::span{std::as_const(storage)},
+                            std::span{m.storage}, std::span{storage});
         return *this;
     }
 
     constexpr auto mask_edges() -> void {
         constexpr auto right_col = num_blocks - 1;
         for (auto i = std::size_t{}; i < num_blocks; ++i) {
-            storage[i * num_blocks + right_col] &= right_column_mask;
+            auto const idx = detail::to_morton(right_col, i);
+            storage[idx] &= right_column_mask;
         }
-        constexpr auto bottom_row_start = num_blocks * (num_blocks - 1);
+        constexpr auto bottom_row = num_blocks - 1;
         for (auto i = std::size_t{}; i < num_blocks; ++i) {
-            storage[bottom_row_start + i] &= bottom_row_mask;
+            auto const idx = detail::to_morton(i, bottom_row);
+            storage[idx] &= bottom_row_mask;
         }
     }
 };
