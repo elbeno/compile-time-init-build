@@ -13,7 +13,6 @@
 #include <limits>
 #include <numeric>
 #include <ostream>
-#include <span>
 #include <string_view>
 
 namespace flow {
@@ -73,9 +72,9 @@ template <std::size_t block_size, std::size_t extent>
 }
 
 template <std::size_t N>
-[[nodiscard]] constexpr auto multiplyNxN(std::span<std::uint64_t const, N> x,
-                                         std::span<std::uint64_t const, N> y,
-                                         std::span<std::uint64_t, N> dst) {
+[[nodiscard]] constexpr auto multiplyNxN(std::uint64_t const *x,
+                                         std::uint64_t const *y,
+                                         std::uint64_t *dst) {
     if constexpr (N == 1) {
         dst[0] = multiply8x8(x[0], y[0]);
     } else if constexpr (N == 2) {
@@ -88,46 +87,44 @@ template <std::size_t N>
         dst[3] =
             detail::multiply8x8(x[2], y[1]) | detail::multiply8x8(x[3], y[3]);
     } else {
-        constexpr auto M = N / 4;
-        using subsrc = std::span<std::uint64_t const, M>;
+        constexpr auto M = N * N / 4;
 
-        auto const a1 = subsrc{std::begin(x), M};
-        auto const b1 = subsrc{std::next(std::begin(x), M), M};
-        auto const c1 = subsrc{std::next(std::begin(x), M * 2), M};
-        auto const d1 = subsrc{std::next(std::begin(x), M * 3), M};
+        auto const a1 = x;
+        auto const b1 = a1 + M;
+        auto const c1 = b1 + M;
+        auto const d1 = c1 + M;
 
-        auto const a2 = subsrc{std::begin(y), M};
-        auto const b2 = subsrc{std::next(std::begin(y), M), M};
-        auto const c2 = subsrc{std::next(std::begin(y), M * 2), M};
-        auto const d2 = subsrc{std::next(std::begin(y), M * 3), M};
+        auto const a2 = y;
+        auto const b2 = a2 + M;
+        auto const c2 = b2 + M;
+        auto const d2 = c2 + M;
 
-        using subdst = std::span<std::uint64_t, M>;
-        auto const dst1 = subdst{std::begin(dst), M};
-        auto const dst2 = subdst{std::next(std::begin(dst), M), M};
-        auto const dst3 = subdst{std::next(std::begin(dst), M * 2), M};
-        auto const dst4 = subdst{std::next(std::begin(dst), M * 3), M};
+        auto const dst1 = dst;
+        auto const dst2 = dst1 + M;
+        auto const dst3 = dst2 + M;
+        auto const dst4 = dst3 + M;
 
         std::array<std::uint64_t, M> intermediate{};
 
-        multiplyNxN(a1, a2, std::span{intermediate});
-        multiplyNxN(b1, c2, std::span{dst1});
-        std::transform(std::begin(intermediate), std::end(intermediate),
-                       std::begin(dst1), std::begin(dst1), std::bit_or{});
+        multiplyNxN<N / 2>(a1, a2, std::data(intermediate));
+        multiplyNxN<N / 2>(b1, c2, dst1);
+        std::transform(std::begin(intermediate), std::end(intermediate), dst1,
+                       dst1, std::bit_or{});
 
-        multiplyNxN(a1, b2, std::span{intermediate});
-        multiplyNxN(b1, d2, std::span{dst2});
-        std::transform(std::begin(intermediate), std::end(intermediate),
-                       std::begin(dst2), std::begin(dst2), std::bit_or{});
+        multiplyNxN<N / 2>(a1, b2, std::data(intermediate));
+        multiplyNxN<N / 2>(b1, d2, dst2);
+        std::transform(std::begin(intermediate), std::end(intermediate), dst2,
+                       dst2, std::bit_or{});
 
-        multiplyNxN(c1, a2, std::span{intermediate});
-        multiplyNxN(d1, c2, std::span{dst3});
-        std::transform(std::begin(intermediate), std::end(intermediate),
-                       std::begin(dst3), std::begin(dst3), std::bit_or{});
+        multiplyNxN<N / 2>(c1, a2, std::data(intermediate));
+        multiplyNxN<N / 2>(d1, c2, dst3);
+        std::transform(std::begin(intermediate), std::end(intermediate), dst3,
+                       dst3, std::bit_or{});
 
-        multiplyNxN(c1, b2, std::span{intermediate});
-        multiplyNxN(d1, d2, std::span{dst4});
-        std::transform(std::begin(intermediate), std::end(intermediate),
-                       std::begin(dst4), std::begin(dst4), std::bit_or{});
+        multiplyNxN<N / 2>(c1, b2, std::data(intermediate));
+        multiplyNxN<N / 2>(d1, d2, dst4);
+        std::transform(std::begin(intermediate), std::end(intermediate), dst4,
+                       dst4, std::bit_or{});
     }
 }
 } // namespace detail
@@ -337,8 +334,8 @@ template <std::size_t N> class bit_matrix {
     }
 
     constexpr auto operator*=(bit_matrix const &m) -> bit_matrix & {
-        detail::multiplyNxN(std::span{std::as_const(storage)},
-                            std::span{m.storage}, std::span{storage});
+        detail::multiplyNxN<num_blocks>(
+            std::data(storage), std::data(m.storage), std::data(storage));
         return *this;
     }
 
