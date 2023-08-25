@@ -42,6 +42,7 @@ add_unit_test(
     LIBRARIES
     warnings
     cib)
+target_compile_options(flow_test PRIVATE -fconstexpr-steps=20000000)
 
 add_unit_test(
     interrupt_test

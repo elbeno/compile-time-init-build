@@ -391,6 +391,8 @@ TEST_CASE("multiply (block matrix)", "[bit matrix]") {
 }
 
 TEST_CASE("power (identity)", "[bit matrix]") {
-    constexpr auto m = flow::bit_matrix<64>::identity();
-    static_assert(pow(m, 64) == m);
+    constexpr auto m = flow::bit_matrix<256>::identity();
+    static_assert(pow(m, 256) == m);
 }
+
+// todo: random high power tests (sparse, dense, half-full)

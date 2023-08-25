@@ -335,16 +335,28 @@ template <std::size_t N> class bit_matrix {
     }
 
     constexpr auto operator*=(bit_matrix const &m) -> bit_matrix &
-        requires(num_blocks > 1)
+        requires(num_blocks == 2)
+    {
+        storage[0] = detail::multiply8x8(storage[0], m.storage[0]) |
+                     detail::multiply8x8(storage[1], m.storage[2]);
+        storage[1] = detail::multiply8x8(storage[0], m.storage[1]) |
+                     detail::multiply8x8(storage[1], m.storage[3]);
+        storage[2] = detail::multiply8x8(storage[2], m.storage[0]) |
+                     detail::multiply8x8(storage[3], m.storage[2]);
+        storage[3] = detail::multiply8x8(storage[2], m.storage[1]) |
+                     detail::multiply8x8(storage[3], m.storage[3]);
+        mask_edges();
+        return *this;
+    }
+
+    constexpr auto operator*=(bit_matrix const &m) -> bit_matrix &
+        requires(num_blocks > 2)
     {
         auto const a = to_sub_blocks(*this);
         auto const b = to_sub_blocks(m);
-
-        auto const sub_mults =
-            std::array{a[0] * b[0] | a[1] * b[2], a[0] * b[1] | a[1] * b[3],
-                       a[2] * b[0] | a[3] * b[2], a[2] * b[1] | a[3] * b[3]};
-        *this = from_sub_blocks<N>(sub_mults[0], sub_mults[1], sub_mults[2],
-                                   sub_mults[3]);
+        *this = from_sub_blocks<N>(
+            a[0] * b[0] | a[1] * b[2], a[0] * b[1] | a[1] * b[3],
+            a[2] * b[0] | a[3] * b[2], a[2] * b[1] | a[3] * b[3]);
         return *this;
     }
 
