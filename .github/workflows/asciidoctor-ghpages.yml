@@ -91,7 +91,7 @@ jobs:
 
   deploy:
     needs: [configure, build]
-    if: needs.configure.outputs.enable_publish == 'true'
+    # if: needs.configure.outputs.enable_publish == 'true'
     name: Deploy Documentation
     permissions:
       contents: read
