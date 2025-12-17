@@ -1,6 +1,5 @@
 add_subdirectory(cib)
 add_subdirectory(flow)
 add_subdirectory(log)
-add_subdirectory(lookup)
 add_subdirectory(msg)
 add_subdirectory(seq)

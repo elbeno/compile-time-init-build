@@ -33,7 +33,9 @@ set(GEN_STR_CATALOG
     ${CMAKE_CURRENT_LIST_DIR}/tools/gen_str_catalog.py
     CACHE FILEPATH "Location of script to generate a string catalog")
 
-set(CIB_PREFIX cib)
+if(NOT DEFINED CIB_PREFIX)
+    set(CIB_PREFIX cib)
+endif()
 
 function(add_tests)
     set(multiValueArgs FILES LIBRARIES)
@@ -54,29 +56,8 @@ function(add_tests)
 endfunction()
 
 add_subdirectory(interrupt)
+add_subdirectory(lookup)
 add_subdirectory(match)
-
-add_library(cib_lookup INTERFACE)
-target_compile_features(cib_lookup INTERFACE cxx_std_20)
-target_link_libraries_system(cib_lookup INTERFACE stdx)
-
-target_sources(
-    cib_lookup
-    INTERFACE FILE_SET
-              lookup
-              TYPE
-              HEADERS
-              BASE_DIRS
-              include
-              FILES
-              include/lookup/detail/select.hpp
-              include/lookup/entry.hpp
-              include/lookup/input.hpp
-              include/lookup/linear_search_lookup.hpp
-              include/lookup/lookup.hpp
-              include/lookup/pseudo_pext_lookup.hpp
-              include/lookup/strategies.hpp
-              include/lookup/strategy_failed.hpp)
 
 add_library(cib_log INTERFACE)
 target_compile_features(cib_log INTERFACE cxx_std_20)
@@ -281,7 +262,6 @@ if(PROJECT_IS_TOP_LEVEL)
     add_docs(docs)
     clang_tidy_interface(cib)
     clang_tidy_interface(cib_flow)
-    clang_tidy_interface(cib_lookup)
     clang_tidy_interface(cib_log)
     clang_tidy_interface(cib_log_binary)
     clang_tidy_interface(cib_log_fmt)
