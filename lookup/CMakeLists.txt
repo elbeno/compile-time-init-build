@@ -5,7 +5,7 @@ target_link_libraries_system(${CIB_PREFIX}_lookup INTERFACE stdx)
 target_sources(
     ${CIB_PREFIX}_lookup
     INTERFACE FILE_SET
-              lookup
+              ${CIB_PREFIX}_lookup
               TYPE
               HEADERS
               BASE_DIRS

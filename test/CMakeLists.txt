@@ -1,4 +1,3 @@
-add_subdirectory(cib)
 add_subdirectory(flow)
 add_subdirectory(log)
 add_subdirectory(msg)

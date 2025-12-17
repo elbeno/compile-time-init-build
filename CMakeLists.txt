@@ -58,6 +58,7 @@ endfunction()
 add_subdirectory(interrupt)
 add_subdirectory(lookup)
 add_subdirectory(match)
+add_subdirectory(nexus)
 
 add_library(cib_log INTERFACE)
 target_compile_features(cib_log INTERFACE cxx_std_20)
@@ -155,34 +156,6 @@ target_sources(
               include/log/catalog/mipi_messages.hpp
               include/log/catalog/writer.hpp)
 
-add_library(cib_nexus INTERFACE)
-target_compile_features(cib_nexus INTERFACE cxx_std_20)
-target_link_libraries_system(cib_nexus INTERFACE stdx)
-
-target_sources(
-    cib_nexus
-    INTERFACE FILE_SET
-              nexus
-              TYPE
-              HEADERS
-              BASE_DIRS
-              include
-              FILES
-              include/cib/builder_meta.hpp
-              include/cib/built.hpp
-              include/cib/callback.hpp
-              include/cib/config.hpp
-              include/cib/detail/components.hpp
-              include/cib/detail/constexpr_conditional.hpp
-              include/cib/detail/runtime_conditional.hpp
-              include/cib/detail/config_details.hpp
-              include/cib/detail/config_item.hpp
-              include/cib/detail/exports.hpp
-              include/cib/detail/extend.hpp
-              include/cib/detail/nexus_details.hpp
-              include/cib/func_decl.hpp
-              include/cib/nexus.hpp)
-
 add_library(cib_flow INTERFACE)
 target_compile_features(cib_flow INTERFACE cxx_std_20)
 target_link_libraries_system(cib_flow INTERFACE cib_log cib_nexus stdx)
@@ -266,7 +239,6 @@ if(PROJECT_IS_TOP_LEVEL)
     clang_tidy_interface(cib_log_binary)
     clang_tidy_interface(cib_log_fmt)
     clang_tidy_interface(cib_msg)
-    clang_tidy_interface(cib_nexus)
     clang_tidy_interface(cib_seq)
 
     # Enable functional and performance test suites.
