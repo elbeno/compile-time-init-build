@@ -33,32 +33,27 @@ set(GEN_STR_CATALOG
     ${CMAKE_CURRENT_LIST_DIR}/tools/gen_str_catalog.py
     CACHE FILEPATH "Location of script to generate a string catalog")
 
-add_library(cib_match INTERFACE)
-target_compile_features(cib_match INTERFACE cxx_std_20)
-target_link_libraries_system(cib_match INTERFACE stdx)
+set(CIB_PREFIX cib)
 
-target_sources(
-    cib_match
-    INTERFACE FILE_SET
-              match
-              TYPE
-              HEADERS
-              BASE_DIRS
-              include
-              FILES
-              include/match/and.hpp
-              include/match/bin_op.hpp
-              include/match/concepts.hpp
-              include/match/constant.hpp
-              include/match/cost.hpp
-              include/match/implies.hpp
-              include/match/negate.hpp
-              include/match/not.hpp
-              include/match/ops.hpp
-              include/match/or.hpp
-              include/match/predicate.hpp
-              include/match/simplify.hpp
-              include/match/sum_of_products.hpp)
+function(add_tests)
+    set(multiValueArgs FILES LIBRARIES)
+    cmake_parse_arguments(AT "" "" "${multiValueArgs}" ${ARGN})
+
+    get_filename_component(prefix ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+    foreach(name ${AT_FILES})
+        string(REPLACE "/" "_" test ${name})
+        add_unit_test(
+            "${prefix}_${test}_test"
+            CATCH2
+            FILES
+            "${name}.cpp"
+            LIBRARIES
+            warnings
+            ${AT_LIBRARIES})
+    endforeach()
+endfunction()
+
+add_subdirectory(match)
 
 add_library(cib_interrupt INTERFACE)
 target_compile_features(cib_interrupt INTERFACE cxx_std_20)
@@ -312,7 +307,6 @@ if(PROJECT_IS_TOP_LEVEL)
     clang_tidy_interface(cib_log)
     clang_tidy_interface(cib_log_binary)
     clang_tidy_interface(cib_log_fmt)
-    clang_tidy_interface(cib_match)
     clang_tidy_interface(cib_msg)
     clang_tidy_interface(cib_nexus)
     clang_tidy_interface(cib_seq)
