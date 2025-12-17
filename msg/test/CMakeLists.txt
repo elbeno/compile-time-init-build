@@ -1,4 +1,6 @@
 add_tests(
+    PREFIX
+    msg
     FILES
     callback
     field_extract

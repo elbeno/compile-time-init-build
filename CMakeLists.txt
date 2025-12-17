@@ -38,14 +38,15 @@ if(NOT DEFINED CIB_PREFIX)
 endif()
 
 function(add_tests)
+    set(singleValueArgs PREFIX)
     set(multiValueArgs FILES LIBRARIES)
-    cmake_parse_arguments(AT "" "" "${multiValueArgs}" ${ARGN})
+    cmake_parse_arguments(AT "" "${singleValueArgs}" "${multiValueArgs}"
+                          ${ARGN})
 
-    get_filename_component(prefix ${CMAKE_CURRENT_SOURCE_DIR} NAME)
     foreach(name ${AT_FILES})
         string(REPLACE "/" "_" test ${name})
         add_unit_test(
-            "${prefix}_${test}_test"
+            "${CIB_PREFIX}_${AT_PREFIX}_${test}_test"
             CATCH2
             FILES
             "${name}.cpp"
@@ -55,9 +56,11 @@ function(add_tests)
     endforeach()
 endfunction()
 
+add_subdirectory(flow)
 add_subdirectory(interrupt)
 add_subdirectory(lookup)
 add_subdirectory(match)
+add_subdirectory(msg)
 add_subdirectory(nexus)
 
 add_library(cib_log INTERFACE)
@@ -78,42 +81,6 @@ target_sources(
               include/log/level.hpp
               include/log/log.hpp
               include/log/module.hpp)
-
-add_library(cib_msg INTERFACE)
-target_compile_features(cib_msg INTERFACE cxx_std_20)
-target_link_libraries_system(
-    cib_msg
-    INTERFACE
-    async
-    cib_log
-    cib_lookup
-    cib_match
-    stdx)
-
-target_sources(
-    cib_msg
-    INTERFACE FILE_SET
-              msg
-              TYPE
-              HEADERS
-              BASE_DIRS
-              include
-              FILES
-              include/msg/callback.hpp
-              include/msg/detail/indexed_builder_common.hpp
-              include/msg/detail/indexed_handler_common.hpp
-              include/msg/detail/separate_sum_terms.hpp
-              include/msg/field.hpp
-              include/msg/field_matchers.hpp
-              include/msg/handler_builder.hpp
-              include/msg/handler.hpp
-              include/msg/handler_interface.hpp
-              include/msg/indexed_builder.hpp
-              include/msg/indexed_handler.hpp
-              include/msg/indexed_service.hpp
-              include/msg/message.hpp
-              include/msg/send.hpp
-              include/msg/service.hpp)
 
 add_library(cib_log_fmt INTERFACE)
 target_compile_features(cib_log_fmt INTERFACE cxx_std_20)
@@ -238,12 +205,10 @@ if(PROJECT_IS_TOP_LEVEL)
     clang_tidy_interface(cib_log)
     clang_tidy_interface(cib_log_binary)
     clang_tidy_interface(cib_log_fmt)
-    clang_tidy_interface(cib_msg)
     clang_tidy_interface(cib_seq)
 
     # Enable functional and performance test suites.
     add_subdirectory(test)
-    add_subdirectory(benchmark)
     add_subdirectory(examples)
     add_subdirectory(tools)
 

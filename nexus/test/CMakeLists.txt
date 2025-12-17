@@ -1,4 +1,6 @@
 add_tests(
+    PREFIX
+    nexus
     FILES
     builder_meta
     callback
