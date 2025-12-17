@@ -123,35 +123,6 @@ target_sources(
               include/log/catalog/mipi_messages.hpp
               include/log/catalog/writer.hpp)
 
-add_library(cib_flow INTERFACE)
-target_compile_features(cib_flow INTERFACE cxx_std_20)
-target_link_libraries_system(cib_flow INTERFACE cib_log cib_nexus stdx)
-
-target_sources(
-    cib_flow
-    INTERFACE FILE_SET
-              flow
-              TYPE
-              HEADERS
-              BASE_DIRS
-              include
-              FILES
-              include/flow/builder.hpp
-              include/flow/debug_builder.hpp
-              include/flow/dsl/par.hpp
-              include/flow/dsl/seq.hpp
-              include/flow/dsl/subgraph_identity.hpp
-              include/flow/dsl/walk.hpp
-              include/flow/flow.hpp
-              include/flow/func_list.hpp
-              include/flow/graph_builder.hpp
-              include/flow/graph_common.hpp
-              include/flow/log.hpp
-              include/flow/run.hpp
-              include/flow/service.hpp
-              include/flow/step.hpp
-              include/flow/viz_builder.hpp)
-
 add_library(cib_seq INTERFACE)
 target_compile_features(cib_seq INTERFACE cxx_std_20)
 target_link_libraries_system(cib_seq INTERFACE cib_flow cib_log cib_nexus stdx)
