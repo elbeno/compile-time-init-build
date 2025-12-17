@@ -9,4 +9,5 @@ add_tests(
     sub_irq_impl
     policies
     LIBRARIES
+    cib_flow
     cib_interrupt)

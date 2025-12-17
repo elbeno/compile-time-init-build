@@ -53,29 +53,8 @@ function(add_tests)
     endforeach()
 endfunction()
 
+add_subdirectory(interrupt)
 add_subdirectory(match)
-
-add_library(cib_interrupt INTERFACE)
-target_compile_features(cib_interrupt INTERFACE cxx_std_20)
-target_link_libraries_system(cib_interrupt INTERFACE concurrency stdx)
-
-target_sources(
-    cib_interrupt
-    INTERFACE FILE_SET
-              interrupt
-              TYPE
-              HEADERS
-              BASE_DIRS
-              include
-              FILES
-              include/interrupt/concepts.hpp
-              include/interrupt/config.hpp
-              include/interrupt/dynamic_controller.hpp
-              include/interrupt/fwd.hpp
-              include/interrupt/hal.hpp
-              include/interrupt/impl.hpp
-              include/interrupt/manager.hpp
-              include/interrupt/policies.hpp)
 
 add_library(cib_lookup INTERFACE)
 target_compile_features(cib_lookup INTERFACE cxx_std_20)
@@ -302,7 +281,6 @@ if(PROJECT_IS_TOP_LEVEL)
     add_docs(docs)
     clang_tidy_interface(cib)
     clang_tidy_interface(cib_flow)
-    clang_tidy_interface(cib_interrupt)
     clang_tidy_interface(cib_lookup)
     clang_tidy_interface(cib_log)
     clang_tidy_interface(cib_log_binary)
