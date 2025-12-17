@@ -56,89 +56,15 @@ function(add_tests)
     endforeach()
 endfunction()
 
-add_subdirectory(flow)
 add_subdirectory(interrupt)
+add_subdirectory(log)
 add_subdirectory(lookup)
 add_subdirectory(match)
-add_subdirectory(msg)
 add_subdirectory(nexus)
 
-add_library(cib_log INTERFACE)
-target_compile_features(cib_log INTERFACE cxx_std_20)
-target_link_libraries_system(cib_log INTERFACE stdx)
-
-target_sources(
-    cib_log
-    INTERFACE FILE_SET
-              log
-              TYPE
-              HEADERS
-              BASE_DIRS
-              include
-              FILES
-              include/log/env.hpp
-              include/log/flavor.hpp
-              include/log/level.hpp
-              include/log/log.hpp
-              include/log/module.hpp)
-
-add_library(cib_log_fmt INTERFACE)
-target_compile_features(cib_log_fmt INTERFACE cxx_std_20)
-target_link_libraries_system(cib_log_fmt INTERFACE cib_log fmt::fmt-header-only
-                             stdx)
-
-target_sources(
-    cib_log_fmt
-    INTERFACE FILE_SET
-              log
-              TYPE
-              HEADERS
-              BASE_DIRS
-              include
-              FILES
-              include/log/fmt/logger.hpp)
-
-add_library(cib_log_binary INTERFACE)
-target_compile_features(cib_log_binary INTERFACE cxx_std_20)
-target_link_libraries_system(cib_log_binary INTERFACE cib_log cib_msg
-                             concurrency stdx)
-
-target_sources(
-    cib_log_binary
-    INTERFACE FILE_SET
-              log
-              TYPE
-              HEADERS
-              BASE_DIRS
-              include
-              FILES
-              include/log/module_id.hpp
-              include/log/string_id.hpp
-              include/log/unit.hpp
-              include/log/catalog/arguments.hpp
-              include/log/catalog/builder.hpp
-              include/log/catalog/catalog.hpp
-              include/log/catalog/encoder.hpp
-              include/log/catalog/mipi_builder.hpp
-              include/log/catalog/mipi_messages.hpp
-              include/log/catalog/writer.hpp)
-
-add_library(cib_seq INTERFACE)
-target_compile_features(cib_seq INTERFACE cxx_std_20)
-target_link_libraries_system(cib_seq INTERFACE cib_flow cib_log cib_nexus stdx)
-
-target_sources(
-    cib_seq
-    INTERFACE FILE_SET
-              seq
-              TYPE
-              HEADERS
-              BASE_DIRS
-              include
-              FILES
-              include/seq/builder.hpp
-              include/seq/impl.hpp
-              include/seq/step.hpp)
+add_subdirectory(flow)
+add_subdirectory(msg)
+add_subdirectory(seq)
 
 add_library(cib INTERFACE)
 target_compile_features(cib INTERFACE cxx_std_20)
@@ -172,14 +98,8 @@ target_sources(
 if(PROJECT_IS_TOP_LEVEL)
     add_docs(docs)
     clang_tidy_interface(cib)
-    clang_tidy_interface(cib_flow)
-    clang_tidy_interface(cib_log)
-    clang_tidy_interface(cib_log_binary)
-    clang_tidy_interface(cib_log_fmt)
-    clang_tidy_interface(cib_seq)
 
     # Enable functional and performance test suites.
-    add_subdirectory(test)
     add_subdirectory(examples)
     add_subdirectory(tools)
 

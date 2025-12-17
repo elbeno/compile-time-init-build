@@ -1,4 +1,5 @@
-add_benchmark(handler_bench NANO FILES handler_bench.cpp SYSTEM_LIBRARIES cib)
+add_benchmark(handler_bench NANO FILES handler_bench.cpp SYSTEM_LIBRARIES
+              cib_nexus)
 target_compile_options(
     handler_bench
     PRIVATE
