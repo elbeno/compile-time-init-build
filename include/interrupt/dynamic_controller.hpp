@@ -90,6 +90,16 @@ template <typename Irqs> struct with_flow {
                   get_name_t, boost::mp11::mp_copy_if_q<Irqs, has_flow<Flow>>>>;
 };
 
+template <typename Irqs, typename Resources>
+using resource_map_t = boost::mp11::mp_apply<
+    stdx::type_map,
+    boost::mp11::mp_transform_q<detail::with_resource<Irqs>, Resources>>;
+
+template <typename Irqs, typename Flows>
+using flow_map_t =
+    boost::mp11::mp_apply<stdx::type_map, boost::mp11::mp_transform_q<
+                                              detail::with_flow<Irqs>, Flows>>;
+
 template <typename Hal> struct get_register_q {
     template <typename Field>
     using from_field = decltype(Hal::template get_register<Field>());
@@ -145,36 +155,41 @@ struct dynamic_controller {
     CONSTINIT static inline irq_names_t named_enables{};
 
     // update bitsets as necessary
+    template <typename T, typename... Us>
+    static auto enable_one(stdx::type_bitset<Us...> &bs) -> void {
+        if constexpr ((... or std::same_as<T, Us>)) {
+            bs.template set<T>();
+        }
+    }
     template <typename T> static auto enable_one() -> void {
         if constexpr (boost::mp11::mp_contains<resources_t, T>::value) {
-            resource_enables.template set<T>();
+            enable_one<T>(resource_enables);
         } else if constexpr (boost::mp11::mp_contains<flows_t, T>::value) {
-            flow_enables.template set<T>();
+            enable_one<T>(flow_enables);
         } else {
-            named_enables.template set<T>();
+            enable_one<T>(named_enables);
         }
     }
 
+    template <typename T, typename... Us>
+    static auto disable_one(stdx::type_bitset<Us...> &bs) -> void {
+        if constexpr ((... or std::same_as<T, Us>)) {
+            bs.template reset<T>();
+        }
+    }
     template <typename T> static auto disable_one() -> void {
         if constexpr (boost::mp11::mp_contains<resources_t, T>::value) {
-            resource_enables.template reset<T>();
+            disable_one<T>(resource_enables);
         } else if constexpr (boost::mp11::mp_contains<flows_t, T>::value) {
-            flow_enables.template reset<T>();
+            disable_one<T>(flow_enables);
         } else {
-            named_enables.template reset<T>();
+            disable_one<T>(named_enables);
         }
     }
 
     // which resources/flows affect which irqs?
     // compute maps: resource -> list<irq names>, flow -> list<irq names>
     using irqs_t = detail::collect_t<Root, stdx::type_list>;
-    using resource_map_t =
-        boost::mp11::mp_apply<stdx::type_map,
-                              boost::mp11::mp_transform_q<
-                                  detail::with_resource<irqs_t>, resources_t>>;
-    using flow_map_t = boost::mp11::mp_apply<
-        stdx::type_map,
-        boost::mp11::mp_transform_q<detail::with_flow<irqs_t>, flows_t>>;
 
     // cached values for each enable register
     template <typename Register>
@@ -185,6 +200,8 @@ struct dynamic_controller {
 
     // which IRQs are potentially affected by a change?
     template <typename... Ts> CONSTEVAL static auto compute_affected_irqs() {
+        using resource_map_t = detail::resource_map_t<irqs_t, resources_t>;
+        using flow_map_t = detail::flow_map_t<irqs_t, flows_t>;
         using affected_irq_names_by_resource_t = boost::mp11::mp_append<
             stdx::type_lookup_t<resource_map_t, Ts, stdx::type_list<>>...>;
         using affected_irq_names_by_flow_t = boost::mp11::mp_append<
