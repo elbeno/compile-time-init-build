@@ -91,14 +91,32 @@ template <typename Irqs> struct with_flow {
 };
 
 template <typename Irqs, typename Resources>
-using resource_map_t = boost::mp11::mp_apply<
+using resource_map_impl = boost::mp11::mp_apply<
     stdx::type_map,
     boost::mp11::mp_transform_q<detail::with_resource<Irqs>, Resources>>;
 
+template <typename Irqs, typename Resources>
+constexpr auto make_resource_map = [] {
+    struct RM : resource_map_impl<Irqs, Resources> {};
+    return RM{};
+};
+
+template <typename Irqs, typename Resources>
+using resource_map_t = decltype(make_resource_map<Irqs, Resources>());
+
 template <typename Irqs, typename Flows>
-using flow_map_t =
+using flow_map_impl =
     boost::mp11::mp_apply<stdx::type_map, boost::mp11::mp_transform_q<
                                               detail::with_flow<Irqs>, Flows>>;
+
+template <typename Irqs, typename Flows>
+constexpr auto make_flow_map = [] {
+    struct FM : flow_map_impl<Irqs, Flows> {};
+    return FM{};
+};
+
+template <typename Irqs, typename Flows>
+using flow_map_t = decltype(make_flow_map<Irqs, Flows>());
 
 template <typename Hal> struct get_register_q {
     template <typename Field>
@@ -202,20 +220,14 @@ struct dynamic_controller {
     template <typename... Ts> CONSTEVAL static auto compute_affected_irqs() {
         using resource_map_t = detail::resource_map_t<irqs_t, resources_t>;
         using flow_map_t = detail::flow_map_t<irqs_t, flows_t>;
+
         using affected_irq_names_by_resource_t = boost::mp11::mp_append<
             stdx::type_lookup_t<resource_map_t, Ts, stdx::type_list<>>...>;
         using affected_irq_names_by_flow_t = boost::mp11::mp_append<
             stdx::type_lookup_t<flow_map_t, Ts, stdx::type_list<>>...>;
 
-        using affected_irqs_t =
-            decltype(stdx::apply_sequence<
-                     boost::mp11::mp_unique<boost::mp11::mp_append<
-                         affected_irq_names_by_resource_t,
-                         affected_irq_names_by_flow_t>>>([]<typename... Ss>() {
-                return boost::mp11::mp_append<boost::mp11::mp_copy_if_q<
-                    detail::descendants_t<Root>, detail::has_name<Ss>>...>{};
-            }));
-        return affected_irqs_t{};
+        return boost::mp11::mp_unique<boost::mp11::mp_append<
+            affected_irq_names_by_resource_t, affected_irq_names_by_flow_t>>{};
     }
 
     // compute changing value/mask for register
@@ -269,6 +281,14 @@ struct dynamic_controller {
             by_registers);
     }
 
+    // template <template <typename...> typename L, typename... IrqNames>
+    template <typename T> static auto update_affected_irqs(T const &) -> void {
+        // using affected_irqs_t =
+        //     boost::mp11::mp_append<boost::mp11::mp_copy_if_q<
+        //         detail::descendants_t<Root>, detail::has_name<IrqNames>>...>;
+        // update(affected_irqs_t{});
+    }
+
     // reset: mark all resources, flows and named irqs enabled
     // and clear all cached state
     template <bool Enable, typename IrqList = stdx::tuple<>>
@@ -312,32 +332,51 @@ struct dynamic_controller {
         update(enable_irqs_t{});
     }
 
-    template <typename... Ts> static auto enable() -> void {
-        (enable_one<Ts>(), ...);
-        using affected_irqs_t = decltype(compute_affected_irqs<Ts...>());
-        update(affected_irqs_t{});
-    }
-    template <typename... Ts> static auto disable() -> void {
-        (disable_one<Ts>(), ...);
-        using affected_irqs_t = decltype(compute_affected_irqs<Ts...>());
-        update(affected_irqs_t{});
-    }
-
     template <stdx::ct_string... IrqNames> static auto enable() -> void {
         (enable_one<stdx::cts_t<IrqNames>>(), ...);
-        using affected_irqs_t =
-            boost::mp11::mp_append<boost::mp11::mp_copy_if_q<
-                detail::descendants_t<Root>,
-                detail::has_name<stdx::cts_t<IrqNames>>>...>;
-        update(affected_irqs_t{});
+        update_affected_irqs(stdx::type_list<stdx::cts_t<IrqNames>...>{});
     }
     template <stdx::ct_string... IrqNames> static auto disable() -> void {
         (disable_one<stdx::cts_t<IrqNames>>(), ...);
-        using affected_irqs_t =
-            boost::mp11::mp_append<boost::mp11::mp_copy_if_q<
-                detail::descendants_t<Root>,
-                detail::has_name<stdx::cts_t<IrqNames>>>...>;
-        update(affected_irqs_t{});
+        update_affected_irqs(stdx::type_list<stdx::cts_t<IrqNames>...>{});
+    }
+
+    template <typename... Ts> static auto enable() -> void {
+        (enable_one<Ts>(), ...);
+
+        using resource_map_t = detail::resource_map_t<irqs_t, resources_t>;
+        using flow_map_t = detail::flow_map_t<irqs_t, flows_t>;
+
+        using affected_irq_names_by_resource_t = boost::mp11::mp_append<
+            stdx::type_lookup_t<resource_map_t, Ts, stdx::type_list<>>...>;
+        using affected_irq_names_by_flow_t = boost::mp11::mp_append<
+            stdx::type_lookup_t<flow_map_t, Ts, stdx::type_list<>>...>;
+
+        using affected_irq_names_t = boost::mp11::mp_unique<
+            boost::mp11::mp_append<affected_irq_names_by_resource_t,
+                                   affected_irq_names_by_flow_t>>;
+
+        // constexpr auto affected_irq_names = compute_affected_irqs<Ts...>();
+        update_affected_irqs(affected_irq_names_t{});
+    }
+    template <typename... Ts> static auto disable() -> void {
+        // (disable_one<Ts>(), ...);
+
+        // using resource_map_t = detail::resource_map_t<irqs_t, resources_t>;
+        // using flow_map_t = detail::flow_map_t<irqs_t, flows_t>;
+
+        // using affected_irq_names_by_resource_t = boost::mp11::mp_append<
+        //     stdx::type_lookup_t<resource_map_t, Ts, stdx::type_list<>>...>;
+        // using affected_irq_names_by_flow_t = boost::mp11::mp_append<
+        //     stdx::type_lookup_t<flow_map_t, Ts, stdx::type_list<>>...>;
+
+        // using affected_irq_names_t = boost::mp11::mp_unique<
+        //     boost::mp11::mp_append<affected_irq_names_by_resource_t,
+        //                            affected_irq_names_by_flow_t>>;
+
+        // // constexpr auto affected_irq_names =
+        // compute_affected_irqs<Ts...>();
+        // update_affected_irqs(affected_irq_names_t{});
     }
 };
 } // namespace interrupt
