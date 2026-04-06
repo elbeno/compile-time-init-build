@@ -152,15 +152,8 @@ struct element_irq : policy_config<Policies>,
 } // namespace detail
 
 template <stdx::ct_string Name, irq_num_t Number, priority_t Priority,
-          typename Policies, typename... Flows>
-using irq =
-    detail::element_irq<Name,
-                        detail::mcu_control_config<"irq", Number, Priority>,
-                        Policies, Flows...>;
-
-template <stdx::ct_string Name, irq_num_t Number, priority_t Priority,
           typename Policies, stdx::ct_string... Flows>
-using irq_service =
+using irq =
     detail::element_irq<Name,
                         detail::mcu_control_config<"irq", Number, Priority>,
                         Policies, stdx::cts_t<Flows>...>;

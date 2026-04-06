@@ -14,6 +14,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstddef>
+#include <string_view>
 
 using interrupt::operator""_irq;
 
@@ -100,22 +101,25 @@ template <typename Group> struct test_hal {
 
 namespace detail {
 template <template <typename> typename Flow> struct test_nexus {
-    template <typename T> constexpr static auto service_v = Flow<T>{};
-    template <typename T> CONSTEVAL static auto get_service() -> auto & {
-        return service_v<T>;
+    template <stdx::ct_string Name>
+    constexpr static auto service_v = Flow<stdx::cts_t<Name>>{};
+    template <stdx::ct_string Name>
+    CONSTEVAL static auto get_service() -> auto & {
+        return service_v<Name>;
     }
-    template <typename T> constexpr static auto service() {
-        return get_service<T>()();
+    template <stdx::ct_string Name> constexpr static auto service() {
+        return get_service<Name>()();
     }
 };
 } // namespace detail
 } // namespace
 
-template <typename T> inline bool flow_run{};
+template <stdx::ct_string> inline bool flow_run{};
 
 template <typename T> struct flow_t {
-    auto operator()() const { flow_run<T> = true; }
-    constexpr static bool active{T::value};
+    auto operator()() const { flow_run<T::value> = true; }
+    constexpr static bool active =
+        std::string_view{T::value}.starts_with("true");
 };
 
 using test_nexus = detail::test_nexus<flow_t>;

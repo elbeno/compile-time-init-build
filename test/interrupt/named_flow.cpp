@@ -34,9 +34,8 @@ TEST_CASE("run flow by name", "[named_flow]") {
     cib::nexus<nexus_config> nexus{};
     nexus.init();
 
-    using int_config =
-        interrupt::root<interrupt::irq_service<"17", 17_irq, 42,
-                                               interrupt::policies<>, "named">>;
+    using int_config = interrupt::root<
+        interrupt::irq<"17", 17_irq, 42, interrupt::policies<>, "named">>;
 
     auto m = interrupt::manager<int_config, test_hal<G>, decltype(nexus)>{};
 

@@ -3,6 +3,7 @@
 #include <interrupt/fwd.hpp>
 #include <interrupt/policies.hpp>
 
+#include <stdx/compiler.hpp>
 #include <stdx/ct_conversions.hpp>
 #include <stdx/ct_string.hpp>
 #include <stdx/tuple.hpp>
@@ -79,7 +80,7 @@ concept nexus_for = requires {
 };
 
 namespace detail {
-template <typename T> constexpr auto config_string1() {
+template <typename T> CONSTEVAL auto config_string1() {
     if constexpr (requires {
                       []<auto N>(stdx::ct_string<N>) {}(T::config());
                   }) {
@@ -88,13 +89,18 @@ template <typename T> constexpr auto config_string1() {
                              []<auto N>(stdx::ct_string<N>) {}(T::name);
                          }) {
         return stdx::ct<T::name>();
+    } else if constexpr (requires {
+                             []<auto N>(stdx::ct_string<N>) {}(T::value);
+                         }) {
+        using namespace stdx::literals;
+        return stdx::ct<"\""_cts + T::value + "\""_cts>();
     } else {
         constexpr auto s = stdx::type_as_string<T>();
         return stdx::ct<stdx::ct_string<s.size() + 1>{s}>();
     }
 }
 
-template <typename... Ts> constexpr auto config_string_for() {
+template <typename... Ts> CONSTEVAL auto config_string_for() {
     using namespace stdx::literals;
     return stdx::tuple{config_string1<Ts>()...}.join(
         ""_ctst, [](auto lhs, auto rhs) { return lhs + ", "_ctst + rhs; });
