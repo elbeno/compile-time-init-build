@@ -39,19 +39,18 @@ template <> struct clear_field<no_field_t> {
 };
 } // namespace detail
 
-template <typename Nexus, typename Config>
-concept nexus_for_cfg = Config::template has_flows_for<Nexus>;
-
-template <typename Config, nexus_for_cfg<Config>... Nexi>
-struct element_irq_impl : Config {
-    constexpr static bool active = Config::template active<Nexi...>;
+template <typename Config, typename... Nexi> struct element_irq_impl : Config {
+    template <typename Hal>
+    constexpr static bool active = Config::template active<Hal, Nexi...>;
 
     template <typename Hal> static auto init() -> void {
-        Config::template enable<active, Hal>();
+        static_assert((... and Config::template has_flows_for<Nexi, Hal>),
+                      "Nexus has no flows that interrupt config uses");
+        Config::template enable<active<Hal>, Hal>();
     }
 
     template <typename Hal, typename Mutex = void> static auto run() -> void {
-        if constexpr (active) {
+        if constexpr (active<Hal>) {
             using status_policy_t = typename Config::status_policy_t;
             using en_t = typename Config::enable_field_t;
             using st_t = typename Config::status_field_t;
@@ -60,7 +59,7 @@ struct element_irq_impl : Config {
                 detail::read_field<st_t>::template with_hal<Hal>()) {
                 status_policy_t::run(
                     [] { detail::clear_field<st_t>::template with_hal<Hal>(); },
-                    [] { Config::template isr<Nexi...>(); });
+                    [] { Config::template isr<Hal, Nexi...>(); });
             }
         }
     }
@@ -68,14 +67,15 @@ struct element_irq_impl : Config {
 
 template <typename Config, sub_irq_interface... Subs>
 struct container_irq_impl : Config {
-    constexpr static bool active = (Subs::active or ...);
+    template <typename Hal>
+    constexpr static bool active = (Subs::template active<Hal> or ...);
 
     template <typename Hal> static auto init() -> void {
-        Config::template enable<active, Hal>();
+        Config::template enable<active<Hal>, Hal>();
     }
 
     template <typename Hal, typename Mutex = void> static auto run() -> void {
-        if constexpr (active) {
+        if constexpr (active<Hal>) {
             using status_policy_t = typename Config::status_policy_t;
             using en_t = typename Config::enable_field_t;
             using st_t = typename Config::status_field_t;

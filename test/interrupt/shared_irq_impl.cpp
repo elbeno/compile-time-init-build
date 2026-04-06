@@ -94,7 +94,7 @@ TEST_CASE("impl runs a flow", "[shared_irq_impl]") {
     using impl_t = typename interrupt::shared_irq<"test_shared", 17_irq, 42,
                                                   interrupt::policies<>,
                                                   sub_t>::built_t<test_nexus>;
-    STATIC_CHECK(impl_t::active);
+    STATIC_CHECK(impl_t::active<test_hal<G>>);
 
     groov::test::reset_store<G>();
     groov::test::set_value<G>("enable"_r, EN0::mask<std::uint32_t>);
@@ -123,7 +123,7 @@ TEST_CASE("impl is inactive when all subs are inactive", "[shared_irq_impl]") {
     using impl_t = typename interrupt::shared_irq<"test_shared", 17_irq, 42,
                                                   interrupt::policies<>,
                                                   sub_t>::built_t<test_nexus>;
-    STATIC_CHECK(not impl_t::active);
+    STATIC_CHECK(not impl_t::active<test_hal<G>>);
 }
 
 TEST_CASE("impl is active when any sub is active", "[shared_irq_impl]") {
@@ -133,11 +133,11 @@ TEST_CASE("impl is active when any sub is active", "[shared_irq_impl]") {
         typename interrupt::shared_irq<"test_shared", 17_irq, 42,
                                        interrupt::policies<>, active_sub_t,
                                        inactive_sub_t>::built_t<test_nexus>;
-    STATIC_CHECK(impl_t::active);
+    STATIC_CHECK(impl_t::active<test_hal<G>>);
 }
 
 TEST_CASE("impl is inactive when there are no subs", "[shared_irq_impl]") {
     using impl_t = typename interrupt::shared_irq<
         "test_shared", 17_irq, 42, interrupt::policies<>>::built_t<test_nexus>;
-    STATIC_CHECK(not impl_t::active);
+    STATIC_CHECK(not impl_t::active<test_hal<G>>);
 }

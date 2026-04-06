@@ -94,28 +94,30 @@ template <base_irq_config... Cfgs> struct parent_config {
 
 template <typename... Flows> struct flow_config {
   private:
-    template <typename Flow, typename... Nexi>
+    template <typename Hal, typename Flow, typename... Nexi>
     constexpr static auto one_active() {
-        return (... or Nexi::template service<Flow>.active);
+        return (... or Hal::template active<Nexi, Flow>());
     }
 
-    template <typename Flow, typename... Nexi>
+    template <typename Hal, typename Flow, typename... Nexi>
     constexpr static auto one_isr() -> void {
-        (Nexi::template service<Flow>(), ...);
+        (Hal::template run<Nexi, Flow>(), ...);
     }
 
   public:
     using flows_t = stdx::type_list<Flows...>;
     using all_flows_t = flows_t;
 
-    template <typename... Nexi>
-    constexpr static bool active = (... or one_active<Flows, Nexi...>());
+    template <typename Hal, typename... Nexi>
+    constexpr static bool active = (... or one_active<Hal, Flows, Nexi...>());
 
-    template <typename Nexus>
-    constexpr static bool has_flows_for = (... and nexus_for<Nexus, Flows>);
+    template <typename Nexus, typename Hal>
+    constexpr static bool has_flows_for =
+        (... and nexus_for<Nexus, Flows, Hal>);
 
-    template <typename... Nexi> constexpr static auto isr() -> void {
-        (one_isr<Flows, Nexi...>(), ...);
+    template <typename Hal, typename... Nexi>
+    constexpr static auto isr() -> void {
+        (one_isr<Hal, Flows, Nexi...>(), ...);
     }
 };
 
@@ -155,6 +157,13 @@ using irq =
     detail::element_irq<Name,
                         detail::mcu_control_config<"irq", Number, Priority>,
                         Policies, Flows...>;
+
+template <stdx::ct_string Name, irq_num_t Number, priority_t Priority,
+          typename Policies, stdx::ct_string... Flows>
+using irq_service =
+    detail::element_irq<Name,
+                        detail::mcu_control_config<"irq", Number, Priority>,
+                        Policies, stdx::cts_t<Flows>...>;
 
 template <stdx::ct_string Name, typename EnableField, typename StatusField,
           typename Policies, typename... Flows>

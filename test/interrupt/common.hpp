@@ -7,6 +7,7 @@
 #include <groov/groov.hpp>
 #include <groov/test.hpp>
 
+#include <stdx/compiler.hpp>
 #include <stdx/concepts.hpp>
 #include <stdx/ct_string.hpp>
 
@@ -24,6 +25,26 @@ bool inited{};
 using namespace stdx::literals;
 template <stdx::ct_string S> using en_field_t = stdx::cts_t<"enable."_cts + S>;
 template <stdx::ct_string S> using st_field_t = stdx::cts_t<"status."_cts + S>;
+
+namespace detail {
+template <typename Flow> struct service_t {
+    template <typename Nexus>
+    constexpr static auto active = Nexus::template get_service<Flow>().active;
+
+    template <typename Nexus> constexpr static auto run() -> void {
+        Nexus::template service<Flow>();
+    }
+};
+
+template <stdx::ct_string Name> struct service_t<stdx::cts_t<Name>> {
+    template <typename Nexus>
+    constexpr static auto active = Nexus::template get_service<Name>().active;
+
+    template <typename Nexus> constexpr static auto run() -> void {
+        Nexus::template service<Name>();
+    }
+};
+} // namespace detail
 
 template <typename Group> struct test_hal {
     static auto init() -> void { inited = true; }
@@ -65,7 +86,29 @@ template <typename Group> struct test_hal {
     template <groov::pathlike P> static auto clear(P p) -> void {
         groov::sync_write(Group{}(p = groov::clear));
     }
+
+    template <typename Nexus, typename Flow>
+    CONSTEVAL static auto active() -> bool {
+        return detail::service_t<Flow>::template active<Nexus>;
+    }
+
+    template <typename Nexus, typename Flow>
+    constexpr static auto run() -> void {
+        detail::service_t<Flow>::template run<Nexus>();
+    }
 };
+
+namespace detail {
+template <template <typename> typename Flow> struct test_nexus {
+    template <typename T> constexpr static auto service_v = Flow<T>{};
+    template <typename T> CONSTEVAL static auto get_service() -> auto & {
+        return service_v<T>;
+    }
+    template <typename T> constexpr static auto service() {
+        return get_service<T>()();
+    }
+};
+} // namespace detail
 } // namespace
 
 template <typename T> inline bool flow_run{};
@@ -75,6 +118,4 @@ template <typename T> struct flow_t {
     constexpr static bool active{T::value};
 };
 
-struct test_nexus {
-    template <typename T> constexpr static auto service = flow_t<T>{};
-};
+using test_nexus = detail::test_nexus<flow_t>;

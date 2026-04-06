@@ -5,10 +5,13 @@ add_tests(
     dynamic_controller
     irq_impl
     manager
+    named_flow
     shared_irq_impl
     shared_sub_irq_impl
     sub_irq_impl
     policies
     LIBRARIES
     cib_interrupt
+    cib_flow
+    cib_nexus
     groov)

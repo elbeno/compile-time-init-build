@@ -72,10 +72,10 @@ concept irq_interface = base_irq_interface<T> and requires(T const &t) {
 template <typename T>
 concept sub_irq_interface = base_irq_interface<T>;
 
-template <typename T, typename Flow>
+template <typename T, typename Flow, typename Hal>
 concept nexus_for = requires {
-    T::template service<Flow>();
-    { T::template service<Flow>.active } -> std::same_as<bool const &>;
+    Hal::template run<T, Flow>();
+    { Hal::template active<T, Flow>() } -> std::same_as<bool>;
 };
 
 namespace detail {

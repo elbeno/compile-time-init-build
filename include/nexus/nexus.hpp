@@ -10,8 +10,6 @@
 
 #include <type_traits>
 
-template <typename...> struct undef;
-
 namespace cib {
 /**
  * Combines all components in a single location so their features can
@@ -30,11 +28,12 @@ template <typename Config> struct nexus {
         initialized<Config, T>::value
             .template build<initialized<Config, T>, nexus>();
 
-    template <typename T> constexpr static auto service() {
-        return service_v<T>();
+    template <typename T> CONSTEVAL static auto get_service() -> auto & {
+        return service_v<T>;
     }
 
-    template <stdx::ct_string Name> constexpr static auto service() {
+    template <stdx::ct_string Name>
+    CONSTEVAL static auto get_service() -> auto & {
         using Exports = decltype(Config::config.exports_tuple());
         using Idx =
             boost::mp11::mp_find_if_q<Exports, detail::matching_name<Name>>;
@@ -43,8 +42,16 @@ template <typename Config> struct nexus {
                 false, "Trying to invoke a service ({}) that is not exported",
                 Name);
         } else {
-            return service<boost::mp11::mp_at<Exports, Idx>>();
+            return get_service<boost::mp11::mp_at<Exports, Idx>>();
         }
+    }
+
+    template <typename T> constexpr static auto service() {
+        return get_service<T>()();
+    }
+
+    template <stdx::ct_string Name> constexpr static auto service() {
+        return get_service<Name>()();
     }
 
     static auto init() -> void {

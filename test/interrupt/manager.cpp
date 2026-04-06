@@ -77,11 +77,12 @@ TEST_CASE("run multiple flows", "[manager]") {
 }
 
 namespace {
-template <typename Flow> struct alt_flow : Flow {};
-
-struct alt_nexus {
-    template <typename T> constexpr static auto service = flow_t<alt_flow<T>>{};
+template <typename T> struct alt_flow {
+    auto operator()() const { flow_run<alt_flow> = true; }
+    constexpr static bool active{T::value};
 };
+
+using alt_nexus = detail::test_nexus<alt_flow>;
 } // namespace
 
 TEST_CASE("run flow across multiple nexi", "[manager]") {

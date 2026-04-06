@@ -78,7 +78,7 @@ TEST_CASE("impl can dump config (some flows)", "[irq_impl]") {
 
 TEST_CASE("impl runs a flow", "[irq_impl]") {
     using impl_t = typename flow_config_t<std::true_type>::built_t<test_nexus>;
-    STATIC_CHECK(impl_t::active);
+    STATIC_CHECK(impl_t::active<test_hal<G>>);
     flow_run<std::true_type> = false;
     impl_t::run<test_hal<G>>();
     CHECK(flow_run<std::true_type>);
@@ -95,10 +95,10 @@ TEST_CASE("impl can init its interrupt", "[irq_impl]") {
 
 TEST_CASE("impl is inactive when flow is not active", "[irq_impl]") {
     using impl_t = typename flow_config_t<std::false_type>::built_t<test_nexus>;
-    STATIC_CHECK(not impl_t::active);
+    STATIC_CHECK(not impl_t::active<test_hal<G>>);
 }
 
 TEST_CASE("impl is inactive when there are no flows", "[irq_impl]") {
     using impl_t = typename no_flows_config_t::built_t<test_nexus>;
-    STATIC_CHECK(not impl_t::active);
+    STATIC_CHECK(not impl_t::active<test_hal<G>>);
 }
