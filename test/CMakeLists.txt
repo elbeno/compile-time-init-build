@@ -18,6 +18,7 @@ endfunction()
 
 add_subdirectory(cib)
 add_subdirectory(flow)
+add_subdirectory(interrupt)
 add_subdirectory(log)
 add_subdirectory(log_binary)
 add_subdirectory(log_fmt)
