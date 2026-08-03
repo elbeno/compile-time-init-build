@@ -26,8 +26,3 @@ add_subdirectory(match)
 add_subdirectory(msg)
 add_subdirectory(nexus)
 add_subdirectory(seq)
-
-if(NOT ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang"
-   OR ${CMAKE_CXX_COMPILER_VERSION} VERSION_GREATER_EQUAL 19)
-    add_subdirectory(interrupt)
-endif()
